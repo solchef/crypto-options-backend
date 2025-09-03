@@ -21,11 +21,14 @@ func ConnectDB() {
 		os.Getenv("DB_PORT"),
 	)
 
-	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	database, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true, // 🚀 disables prepared statement caching
+	}), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
 	DB = database
-	fmt.Println("✅ Connected to PostgreSQL")
+	fmt.Println("✅ Connected to PostgreSQL (simple protocol, no stmt cache)")
 }

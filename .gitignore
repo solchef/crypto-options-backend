@@ -1,0 +1,24 @@
+# Binaries for programs and plugins
+*.exe
+*.bin
+*.dll
+*.so
+*.dylib
+
+# Go module cache and downloaded dependencies
+go.mod.sum
+vendor/
+
+# Log files
+*.log
+logs/
+
+# Environment variables and sensitive configuration
+.env
+config.json # If it contains sensitive info
+
+# IDE/Editor specific files
+.idea/
+.vscode/
+*.swp
+*.bak

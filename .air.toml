@@ -1,0 +1,20 @@
+# .air.toml
+# Air config for crypto-trading-backend
+
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  bin = "./tmp/main.exe"
+  cmd = "go build -o ./tmp/main.exe ."
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "vendor"]
+  delay = 1000 # ms
+
+[log]
+  time = true
+
+[serve]
+  cmd = "./tmp/main.exe"
+  restart = true
+  grace = 2000

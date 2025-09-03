@@ -1,0 +1,575 @@
+basePath: /api
+definitions:
+  controllers.PricePoint:
+    properties:
+      time:
+        description: timestamp or formatted time
+        example: "2025-09-02 12:00:00"
+        type: string
+      value:
+        description: close price
+        example: 43210.5
+        type: number
+    type: object
+  models.Trade:
+    properties:
+      amount:
+        type: number
+      asset:
+        description: e.g. BTCUSDT
+        type: string
+      createdAt:
+        type: string
+      direction:
+        description: '"UP" or "DOWN"'
+        type: string
+      duration:
+        description: in seconds
+        type: integer
+      entryPrice:
+        type: number
+      exitPrice:
+        format: float64
+        type: number
+      expiredAt:
+        type: string
+      id:
+        type: integer
+      status:
+        description: OPEN / WON / LOST
+        type: string
+      userID:
+        type: integer
+      walletID:
+        type: integer
+    type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      password:
+        description: hashed later
+        type: string
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  models.Wallet:
+    properties:
+      balance:
+        description: Main trading balance
+        type: number
+      created_at:
+        type: string
+      currency:
+        type: string
+      id:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
+      user_id:
+        description: ✅ indexed, not unique
+        type: integer
+    type: object
+  models.WalletTransaction:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      id:
+        type: integer
+      reference:
+        type: string
+      type:
+        description: deposit, withdraw, trade, bonus, etc.
+        type: string
+      wallet:
+        $ref: '#/definitions/models.Wallet'
+      wallet_id:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: API documentation for Crypto Options platform
+  title: Crypto Options API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate and get JWT tokens
+      parameters:
+      - description: Login info
+        in: body
+        name: credentials
+        required: true
+        schema:
+          properties:
+            password:
+              type: string
+            username:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login a user
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Revoke refresh token and clear cookie
+      parameters:
+      - description: Refresh token in body (optional if in cookie)
+        in: body
+        name: refresh_token
+        schema:
+          properties:
+            refresh_token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Logout user
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Rotate refresh token and get a new access token
+      parameters:
+      - description: Refresh token in body (optional if in cookie)
+        in: body
+        name: refresh_token
+        schema:
+          properties:
+            refresh_token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Refresh JWT tokens
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user and wallet
+      parameters:
+      - description: User info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.User'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - auth
+  /market/history:
+    get:
+      consumes:
+      - application/json
+      description: Returns the past 24h price history for a given symbol (1m candles,
+        last 1440 points).
+      parameters:
+      - description: Trading symbol (e.g. BTCUSDT)
+        in: query
+        name: symbol
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Price history (array of time/value points)
+          schema:
+            items:
+              $ref: '#/definitions/controllers.PricePoint'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get 24h price history
+      tags:
+      - Market
+  /profile:
+    get:
+      description: Get authenticated user info
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get user profile
+      tags:
+      - auth
+  /trades/close:
+    post:
+      consumes:
+      - application/json
+      description: Manually close a trade
+      parameters:
+      - description: Trade ID to close
+        in: body
+        name: trade
+        required: true
+        schema:
+          properties:
+            trade_id:
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Trade'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Close a trade
+      tags:
+      - trade
+  /trades/history:
+    get:
+      description: Retrieve all trades (open and closed) for the logged-in user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Trade'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get trade history
+      tags:
+      - trade
+  /trades/open:
+    get:
+      description: Retrieve all open trades for the logged-in user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Trade'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get open trades
+      tags:
+      - trade
+  /trades/place:
+    post:
+      consumes:
+      - application/json
+      description: Place a new trade with immediate debit from wallet
+      parameters:
+      - description: Trade request
+        in: body
+        name: trade
+        required: true
+        schema:
+          properties:
+            amount:
+              type: number
+            asset:
+              type: string
+            direction:
+              type: string
+            duration:
+              type: integer
+            wallet_id:
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Trade'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Place a trade
+      tags:
+      - trade
+  /wallets:
+    get:
+      description: Retrieve all wallets for the logged-in user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Wallet'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get user wallets
+      tags:
+      - wallet
+  /wallets/deposit:
+    post:
+      consumes:
+      - application/json
+      description: Deposit a certain amount to a wallet
+      parameters:
+      - description: Deposit request
+        in: body
+        name: deposit
+        required: true
+        schema:
+          properties:
+            amount:
+              type: number
+            currency:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Deposit funds
+      tags:
+      - wallet
+  /wallets/transactions:
+    get:
+      description: Retrieve transactions for user's wallets
+      parameters:
+      - description: Filter by currency
+        in: query
+        name: currency
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.WalletTransaction'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get wallet transactions
+      tags:
+      - wallet
+  /wallets/withdraw:
+    post:
+      consumes:
+      - application/json
+      description: Withdraw a certain amount from a wallet
+      parameters:
+      - description: Withdraw request
+        in: body
+        name: withdraw
+        required: true
+        schema:
+          properties:
+            amount:
+              type: number
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Withdraw funds
+      tags:
+      - wallet
+schemes:
+- http
+- https
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

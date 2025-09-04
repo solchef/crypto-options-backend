@@ -4,6 +4,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -41,6 +42,26 @@ func main() {
 	// Connect DB
 	config.ConnectDB()
 
+	// Redis + Kafka
+	config.ConnectRedis()
+	config.InitKafka()
+	services.InitPriceProducer()
+	services.StartPriceConsumer() // fan-out price ticks
+
+	// Start Binance price streams (multiple symbols)
+	syms := os.Getenv("SYMBOLS")
+	if syms == "" {
+		syms = "btcusdt,ethusdt"
+	}
+	for _, s := range strings.Split(syms, ",") {
+		symbol := strings.TrimSpace(s)
+		if symbol == "" {
+			continue
+		}
+		priceChan := make(chan float64)
+		go services.ListenPriceStream(symbol, priceChan)
+	}
+
 	// Auto Migrate
 	config.DB.AutoMigrate(
 		&models.User{},
@@ -49,12 +70,6 @@ func main() {
 		&models.WalletTransaction{},
 		&models.Trade{},
 	)
-
-	// Start price streams
-	// go services.ListenPriceStream("btcusdt")
-	// go services.ListenPriceStream("ethusdt")
-	// go services.ListenTickerStream("btcusdt")
-	// go services.ListenTickerStream("ethusdt")
 
 	// Setup Gin
 	r := gin.Default()

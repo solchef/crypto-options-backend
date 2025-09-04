@@ -35,7 +35,7 @@ func ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	// Start Binance subscriptions
 	go ListenPriceStream(symbol, tradeCh)
-	go ListenTickerStream(symbol, statsCh)
+	// go ListenTickerStream(symbol, statsCh)
 
 	// Keep last stats
 	var lastChange, lastChangePct float64

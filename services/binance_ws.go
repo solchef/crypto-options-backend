@@ -1,75 +1,3 @@
-// package services
-
-// import (
-// 	"encoding/json"
-// 	"fmt"
-// 	"log"
-// 	"strconv"
-// 	"sync"
-
-// 	"github.com/gorilla/websocket"
-// )
-
-// type PriceUpdate struct {
-// 	Price float64
-// }
-
-// var priceMap = struct {
-// 	sync.RWMutex
-// 	data map[string]float64
-// }{data: make(map[string]float64)}
-
-// // ListenPriceStream subscribes to Binance WebSocket for a symbol
-// func ListenPriceStream(symbol string) {
-// 	url := fmt.Sprintf("wss://stream.binance.com:9443/ws/%s@trade", symbol)
-// 	c, _, err := websocket.DefaultDialer.Dial(url, nil)
-// 	if err != nil {
-// 		log.Println("WebSocket connection error:", err)
-// 		return
-// 	}
-// 	defer c.Close()
-
-// 	for {
-// 		_, message, err := c.ReadMessage()
-// 		if err != nil {
-// 			log.Println("WebSocket read error:", err)
-// 			return
-// 		}
-
-// 		//  log.Printf("Received message for %s: %s", symbol, message)
-
-// 		var data map[string]interface{}
-// 		if err := json.Unmarshal(message, &data); err != nil {
-// 			continue
-// 		}
-
-// 		p, ok := data["p"].(string)
-// 		if !ok {
-// 			continue
-// 		}
-
-// 		price, err := strconv.ParseFloat(p, 64)
-// 		if err != nil {
-// 			continue
-// 		}
-
-// 		// Cache price
-// 		priceMap.Lock()
-// 		priceMap.data[symbol] = price
-// 		priceMap.Unlock()
-
-// 		// Broadcast price to all connected clients
-// 		BroadcastPrice(symbol, price)
-// 	}
-// }
-
-// // GetCurrentPrice returns the latest cached price
-// func GetCurrentPrice(symbol string) float64 {
-// 	priceMap.RLock()
-// 	defer priceMap.RUnlock()
-// 	return priceMap.data[symbol]
-// }
-
 package services
 
 import (
@@ -79,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"github.com/solchef/crypto-options-backend/config"
 )
 
 type PriceUpdate struct {
@@ -98,6 +27,32 @@ var priceMap = struct {
 }{data: make(map[string]PriceUpdate)}
 
 // ListenPriceStream subscribes to Binance trade price stream
+// func ListenPriceStream(symbol string, ch chan<- float64) {
+// 	url := "wss://stream.binance.com:9443/ws/" + symbol + "@trade"
+// 	c, _, err := websocket.DefaultDialer.Dial(url, nil)
+// 	if err != nil {
+// 		log.Println("trade dial:", err)
+// 		return
+// 	}
+// 	defer c.Close()
+
+// 	for {
+// 		_, msg, err := c.ReadMessage()
+// 		if err != nil {
+// 			log.Println("trade read:", err)
+// 			return
+// 		}
+// 		var data struct {
+// 			Price string `json:"p"`
+// 		}
+// 		if err := json.Unmarshal(msg, &data); err == nil {
+// 			if price, err := strconv.ParseFloat(data.Price, 64); err == nil {
+// 				ch <- price
+// 			}
+// 		}
+// 	}
+// }
+
 func ListenPriceStream(symbol string, ch chan<- float64) {
 	url := "wss://stream.binance.com:9443/ws/" + symbol + "@trade"
 	c, _, err := websocket.DefaultDialer.Dial(url, nil)
@@ -118,10 +73,34 @@ func ListenPriceStream(symbol string, ch chan<- float64) {
 		}
 		if err := json.Unmarshal(msg, &data); err == nil {
 			if price, err := strconv.ParseFloat(data.Price, 64); err == nil {
+
+				// --- 1. Update in-memory cache ---
+				priceMap.Lock()
+				priceMap.data[symbol] = PriceUpdate{
+					Symbol: symbol,
+					Price:  price,
+				}
+				priceMap.Unlock()
+
+				// --- 2. Write-through to Redis ---
+				if err := config.Redis.Set(config.Ctx, "price:"+symbol, price, 0).Err(); err != nil {
+					log.Println("redis set error:", err)
+				}
+
+				// --- 3. Publish to Kafka ---
+				if err := PublishPriceTick(symbol, price); err != nil {
+					log.Println("kafka publish error:", err)
+				}
+
+				// --- 4. Push to WebSocket clients (if enabled) ---
+				//BroadcastPrice(symbol, price)
+
+				// Still support legacy channel if caller uses it
 				ch <- price
 			}
 		}
 	}
+
 }
 
 // ListenTickerStream subscribes to Binance 24hr ticker stats

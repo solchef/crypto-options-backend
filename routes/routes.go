@@ -39,6 +39,5 @@ func RegisterRoutes(r *gin.Engine) {
 		protected.POST("/wallets/deposit", controllers.Deposit)
 		protected.POST("/wallets/withdraw", controllers.Withdraw)
 		protected.GET("/wallets/transactions", controllers.GetWalletTransactions)
-
 	}
 }

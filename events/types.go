@@ -6,6 +6,13 @@ type PriceTick struct {
 	Timestamp int64   `json:"timestamp"` // ms
 }
 
+type TickerStats struct {
+	Symbol    string  `json:"symbol"`
+	Change    float64 `json:"change"`     // 24h change
+	ChangePct float64 `json:"change_pct"` // 24h change percent
+	Timestamp int64   `json:"timestamp"`  // ms
+}
+
 // (Optional) future events
 type TradePlaced struct {
 	TradeID   string  `json:"tradeId"`

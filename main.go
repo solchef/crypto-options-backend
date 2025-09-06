@@ -4,7 +4,6 @@ package main
 import (
 	"log"
 	"os"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -46,21 +45,7 @@ func main() {
 	config.ConnectRedis()
 	config.InitKafka()
 	services.InitPriceProducer()
-	services.StartPriceConsumer() // fan-out price ticks
-
-	// Start Binance price streams (multiple symbols)
-	syms := os.Getenv("SYMBOLS")
-	if syms == "" {
-		syms = "btcusdt,ethusdt"
-	}
-	for _, s := range strings.Split(syms, ",") {
-		symbol := strings.TrimSpace(s)
-		if symbol == "" {
-			continue
-		}
-		priceChan := make(chan float64)
-		go services.ListenPriceStream(symbol, priceChan)
-	}
+	services.StartPriceConsumer()
 
 	// Auto Migrate
 	config.DB.AutoMigrate(
@@ -71,6 +56,9 @@ func main() {
 		&models.Trade{},
 	)
 
+	// ✅ Start market data streams
+	services.StartMarketStreams()
+
 	// Setup Gin
 	r := gin.Default()
 	r.Use(middleware.CORSMiddleware())
@@ -80,9 +68,9 @@ func main() {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// ✅ Add WebSocket endpoint
-	r.GET("/ws", func(c *gin.Context) {
-		config.ServeWS(c.Writer, c.Request)
-	})
+	// r.GET("/ws", func(c *gin.Context) {
+	// 	config.ServeWS(c.Writer, c.Request)
+	// })
 
 	r.GET("/trading", func(c *gin.Context) {
 		services.ServeWS(c.Writer, c.Request)
